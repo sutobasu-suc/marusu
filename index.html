@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <title>MR32風レジ</title>
+  <style>
+    body {
+      font-family: 'Meiryo', sans-serif;
+      background-color: #c0c0c0;
+      margin: 0;
+      padding: 20px;
+      display: flex;
+      gap: 20px;
+    }
+    .left, .right {
+      flex: 1;
+    }
+    .title-bar {
+      background-color: #1f2f5f;
+      color: white;
+      padding: 5px 10px;
+      font-weight: bold;
+      font-size: 16px;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(2, 180px);
+      gap: 10px;
+    }
+    .button-box {
+      border: 2px solid #666;
+      background: #f0f0f0;
+      display: flex;
+      flex-direction: column;
+      cursor: pointer;
+    }
+    .button-box:hover {
+      background-color: #e8e8e8;
+    }
+    .button-main {
+      font-size: 16px;
+      font-weight: bold;
+      padding: 10px;
+      background: #ddd;
+      text-align: center;
+      border-bottom: 1px solid #999;
+    }
+    .button-sub {
+      font-size: 12px;
+      padding: 5px;
+      text-align: center;
+      background: #eee;
+    }
+    .bottom-section {
+      margin-top: 30px;
+    }
+    #total {
+      font-size: 24px;
+      font-weight: bold;
+      margin: 10px 0;
+    }
+    .keypad {
+      display: grid;
+      grid-template-columns: repeat(3, 60px);
+      gap: 5px;
+      margin: 10px 0;
+    }
+    .keypad button {
+      padding: 10px;
+      font-size: 18px;
+      background: #ddd;
+      border: 2px solid #333;
+      cursor: pointer;
+    }
+    #inputDisplay, #paidDisplay {
+      font-size: 20px;
+      padding: 5px;
+      text-align: right;
+      width: 180px;
+    }
+    .history-box {
+      background: #fff;
+      border: 1px solid #333;
+      padding: 10px;
+      height: 400px;
+      overflow-y: scroll;
+      margin-bottom: 10px;
+    }
+    .history-total {
+      font-weight: bold;
+      font-size: 18px;
+    }
+    button.action {
+      padding: 10px 20px;
+      font-size: 16px;
+      border: 2px solid #333;
+      background-color: #ccc;
+      cursor: pointer;
+      margin-top: 10px;
+    }
+  </style>
+</head>
+<body>
+  <div class="left">
+    <div class="title-bar">Ｔ Ｒ Ｓ端末</div>
+
+    <div class="grid" style="margin-top: 10px;">
+      <div class="button-box" onclick="addAmount(1000)">
+        <div class="button-main">一般</div>
+        <div class="button-sub">1000円</div>
+      </div>
+      <div class="button-box" onclick="addAmount(700)">
+        <div class="button-main">ゲーム部</div>
+        <div class="button-sub">700円</div>
+      </div>
+    </div>
+
+    <div style="margin-top: 20px;">
+      <div class="button-main">金額入力（その他・募金）</div>
+      <input type="text" id="inputDisplay" readonly>
+      <div class="keypad">
+        <button onclick="press(1)">1</button>
+        <button onclick="press(2)">2</button>
+        <button onclick="press(3)">3</button>
+        <button onclick="press(4)">4</button>
+        <button onclick="press(5)">5</button>
+        <button onclick="press(6)">6</button>
+        <button onclick="press(7)">7</button>
+        <button onclick="press(8)">8</button>
+        <button onclick="press(9)">9</button>
+        <button onclick="press(0)">0</button>
+        <button onclick="clearInput()">C</button>
+      </div>
+      <button class="action" onclick="addInputToTotal()">追加</button>
+    </div>
+
+    <div class="bottom-section">
+      <div id="total">合計: 0 円</div>
+      <div style="margin-top: 10px;">
+        支払い金額: <input type="text" id="paidDisplay" placeholder="円単位" />
+      </div>
+      <div id="changeOutput"></div>
+      <button class="action" onclick="checkout()">支払い</button>
+    </div>
+  </div>
+
+  <div class="right">
+    <div class="title-bar">履歴</div>
+    <div class="history-box" id="historyBox"></div>
+    <div class="history-total" id="historyTotal">合計: 0 円</div>
+    <button class="action" onclick="clearHistory()">履歴を削除</button>
+  </div>
+
+  <script>
+    let total = 0;
+    let input = '';
+
+    function press(num) {
+      input += num.toString();
+      document.getElementById('inputDisplay').value = input;
+    }
+
+    function clearInput() {
+      input = '';
+      document.getElementById('inputDisplay').value = '';
+    }
+
+    function addInputToTotal() {
+      const amount = parseInt(input);
+      if (!isNaN(amount)) {
+        addAmount(amount);
+        clearInput();
+      }
+    }
+
+    function addAmount(amount) {
+      total += amount;
+      updateDisplay();
+    }
+
+    function updateDisplay() {
+      document.getElementById('total').textContent = `合計: ${total} 円`;
+    }
+
+    function checkout() {
+      const paid = parseInt(document.getElementById('paidDisplay').value);
+      if (isNaN(paid)) {
+        alert("支払金額を入力してください。");
+        return;
+      }
+      if (paid < total) {
+        alert("支払金額が不足しています。");
+        return;
+      }
+      const change = paid - total;
+      document.getElementById('changeOutput').textContent = `おつり: ${change} 円`;
+
+      const now = new Date().toLocaleString();
+      const record = { time: now, amount: total, paid: paid, change: change };
+      let history = JSON.parse(localStorage.getItem('salesHistory') || '[]');
+      history.push(record);
+      localStorage.setItem('salesHistory', JSON.stringify(history));
+      total = 0;
+      updateDisplay();
+      document.getElementById('paidDisplay').value = '';
+      showHistory();
+    }
+
+    function showHistory() {
+      const historyBox = document.getElementById('historyBox');
+      const historyTotal = document.getElementById('historyTotal');
+      const history = JSON.parse(localStorage.getItem('salesHistory') || '[]');
+      historyBox.innerHTML = '';
+      let sum = 0;
+      for (let entry of history) {
+        const div = document.createElement('div');
+        div.textContent = `${entry.time} - 金額: ${entry.amount}円, 支払い: ${entry.paid}円, おつり: ${entry.change}円`;
+        historyBox.appendChild(div);
+        sum += entry.amount;
+      }
+      historyTotal.textContent = `合計: ${sum} 円`;
+    }
+
+    function clearHistory() {
+      localStorage.removeItem('salesHistory');
+      showHistory();
+    }
+
+    window.onload = showHistory;
+  </script>
+</body>
+</html>
