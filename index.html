@@ -97,22 +97,43 @@
       cursor: pointer;
       margin-top: 10px;
     }
+    /* ===== Settings modal ===== */
+    #settingsModal {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,.4);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      visibility: hidden;
+    }
+    #settingsModal.active { visibility: visible; }
+    .modal-content {
+      background: #fff;
+      border: 2px solid #333;
+      width: 420px;
+      padding: 20px;
+      max-height: 80vh;
+      overflow-y: auto;
+    }
+    .item-row {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 6px;
+    }
+    .item-row input[type="text"] {
+      flex: 1;
+      padding: 4px;
+    }
+    .item-row input[type="number"] { width: 90px; }
+    .item-row button { width: 60px; }
   </style>
 </head>
 <body>
   <div class="left">
-    <div class="title-bar">Ｔ Ｒ Ｓ端末</div>
+    <div class="title-bar">Ｔ Ｒ Ｓ端末 <button style="float:right" onclick="openSettings()">設定</button></div>
 
-    <div class="grid" style="margin-top: 10px;">
-      <div class="button-box" onclick="addAmount(1000)">
-        <div class="button-main">一般</div>
-        <div class="button-sub">1000円</div>
-      </div>
-      <div class="button-box" onclick="addAmount(700)">
-        <div class="button-main">ゲーム部</div>
-        <div class="button-sub">700円</div>
-      </div>
-    </div>
+    <div id="itemGrid" class="grid" style="margin-top: 10px;"></div>
 
     <div style="margin-top: 20px;">
       <div class="button-main">金額入力（その他・募金）</div>
@@ -150,82 +171,109 @@
     <button class="action" onclick="clearHistory()">履歴を削除</button>
   </div>
 
-  <script>
-    let total = 0;
-    let input = '';
+  <!-- ===== Settings Modal ===== -->
+  <div id="settingsModal">
+    <div class="modal-content">
+      <h3>商品設定</h3>
+      <div id="itemList"></div>
+      <hr>
+      <div class="item-row">
+        <input type="text" id="newName" placeholder="商品名">
+        <input type="number" id="newPrice" placeholder="価格">
+        <button onclick="addNewItem()">追加</button>
+      </div>
+      <button class="action" onclick="closeSettings()">閉じる</button>
+    </div>
+  </div>
 
-    function press(num) {
-      input += num.toString();
-      document.getElementById('inputDisplay').value = input;
-    }
+<script>
+  let total = 0;
+  let input = '';
 
-    function clearInput() {
-      input = '';
-      document.getElementById('inputDisplay').value = '';
-    }
+  // ===== Item management =====
+  const DEFAULT_ITEMS = [
+    { name: '一般', price: 1000 },
+    { name: 'ゲーム部', price: 700 }
+  ];
 
-    function addInputToTotal() {
-      const amount = parseInt(input);
-      if (!isNaN(amount)) {
-        addAmount(amount);
-        clearInput();
-      }
-    }
+  function getItems(){
+    return JSON.parse(localStorage.getItem('items')||'null') || DEFAULT_ITEMS;
+  }
+  function saveItems(items){ localStorage.setItem('items', JSON.stringify(items)); }
 
-    function addAmount(amount) {
-      total += amount;
-      updateDisplay();
-    }
+  function renderItems(){
+    const grid = document.getElementById('itemGrid');
+    grid.innerHTML='';
+    getItems().forEach(({name,price})=>{
+      const box=document.createElement('div');
+      box.className='button-box';
+      box.onclick=()=>addAmount(price);
+      box.innerHTML=`<div class="button-main">${name}</div><div class="button-sub">${price}円</div>`;
+      grid.appendChild(box);
+    });
+  }
 
-    function updateDisplay() {
-      document.getElementById('total').textContent = `合計: ${total} 円`;
-    }
+  // ===== Settings modal =====
+  function openSettings(){
+    document.getElementById('settingsModal').classList.add('active');
+    drawItemList();
+  }
+  function closeSettings(){ document.getElementById('settingsModal').classList.remove('active'); }
 
-    function checkout() {
-      const paid = parseInt(document.getElementById('paidDisplay').value);
-      if (isNaN(paid)) {
-        alert("支払金額を入力してください。");
-        return;
-      }
-      if (paid < total) {
-        alert("支払金額が不足しています。");
-        return;
-      }
-      const change = paid - total;
-      document.getElementById('changeOutput').textContent = `おつり: ${change} 円`;
+  function drawItemList(){
+    const list=document.getElementById('itemList');
+    list.innerHTML='';
+    getItems().forEach((it,idx)=>{
+      const row=document.createElement('div');
+      row.className='item-row';
+      row.innerHTML=`<input type="text" value="${it.name}" onchange="updateItemName(${idx},this.value)">`+
+                    `<input type="number" value="${it.price}" onchange="updateItemPrice(${idx},this.value)">`+
+                    `<button onclick="deleteItem(${idx})">削除</button>`;
+      list.appendChild(row);
+    });
+  }
+  function updateItemName(i,val){ const items=getItems(); items[i].name=val; saveItems(items); renderItems(); }
+  function updateItemPrice(i,val){ const items=getItems(); items[i].price=parseInt(val)||0; saveItems(items); renderItems(); }
+  function deleteItem(i){ const items=getItems(); items.splice(i,1); saveItems(items); drawItemList(); renderItems(); }
+  function addNewItem(){
+    const name=document.getElementById('newName').value.trim();
+    const price=parseInt(document.getElementById('newPrice').value);
+    if(!name||isNaN(price)){ alert('商品名と価格を入力してください'); return; }
+    const items=getItems(); items.push({name,price}); saveItems(items);
+    document.getElementById('newName').value=''; document.getElementById('newPrice').value='';
+    drawItemList(); renderItems();
+  }
 
-      const now = new Date().toLocaleString();
-      const record = { time: now, amount: total, paid: paid, change: change };
-      let history = JSON.parse(localStorage.getItem('salesHistory') || '[]');
-      history.push(record);
-      localStorage.setItem('salesHistory', JSON.stringify(history));
-      total = 0;
-      updateDisplay();
-      document.getElementById('paidDisplay').value = '';
-      showHistory();
-    }
+  // ===== Sale functions =====
+  function press(num){ input+=num; document.getElementById('inputDisplay').value=input; }
+  function clearInput(){ input=''; document.getElementById('inputDisplay').value=''; }
+  function addInputToTotal(){ const amount=parseInt(input); if(!isNaN(amount)){ addAmount(amount); clearInput(); }}
+  function addAmount(amount){ total+=amount; updateDisplay(); }
+  function updateDisplay(){ document.getElementById('total').textContent=`合計: ${total} 円`; }
 
-    function showHistory() {
-      const historyBox = document.getElementById('historyBox');
-      const historyTotal = document.getElementById('historyTotal');
-      const history = JSON.parse(localStorage.getItem('salesHistory') || '[]');
-      historyBox.innerHTML = '';
-      let sum = 0;
-      for (let entry of history) {
-        const div = document.createElement('div');
-        div.textContent = `${entry.time} - 金額: ${entry.amount}円, 支払い: ${entry.paid}円, おつり: ${entry.change}円`;
-        historyBox.appendChild(div);
-        sum += entry.amount;
-      }
-      historyTotal.textContent = `合計: ${sum} 円`;
-    }
+  function checkout(){
+    const paid=parseInt(document.getElementById('paidDisplay').value);
+    if(isNaN(paid)){ alert('支払金額を入力してください。'); return; }
+    if(paid<total){ alert('支払金額が不足しています。'); return; }
+    const change=paid-total; document.getElementById('changeOutput').textContent=`おつり: ${change} 円`;
+    const now=new Date().toLocaleString();
+    const record={time:now,amount:total,paid,change};
+    const history=JSON.parse(localStorage.getItem('salesHistory')||'[]');
+    history.push(record); localStorage.setItem('salesHistory',JSON.stringify(history));
+    total=0; updateDisplay(); document.getElementById('paidDisplay').value=''; showHistory();
+  }
 
-    function clearHistory() {
-      localStorage.removeItem('salesHistory');
-      showHistory();
-    }
+  function showHistory(){
+    const box=document.getElementById('historyBox');
+    const ht=document.getElementById('historyTotal');
+    const history=JSON.parse(localStorage.getItem('salesHistory')||'[]');
+    box.innerHTML=''; let sum=0;
+    history.forEach(e=>{ const d=document.createElement('div'); d.textContent=`${e.time} - 金額:${e.amount}円, 支払い:${e.paid}円, おつり:${e.change}円`; box.appendChild(d); sum+=e.amount;});
+    ht.textContent=`合計: ${sum} 円`; }
+  function clearHistory(){ localStorage.removeItem('salesHistory'); showHistory(); }
 
-    window.onload = showHistory;
-  </script>
+  // ===== init =====
+  window.onload=()=>{ renderItems(); showHistory(); };
+</script>
 </body>
 </html>
